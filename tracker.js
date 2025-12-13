@@ -57,6 +57,12 @@ function initMap() {
     marker = L.marker(DEFAULT_CENTER).addTo(map)
         .bindPopup("Aguardando localização...")
         .openPopup();
+        
+    // Garante que o Leaflet calcula o tamanho corretamente após a injeção de conteúdo dinâmico.
+    // Isso é crucial para que os tiles carreguem corretamente em layouts dinâmicos e garantam a visibilidade.
+    setTimeout(() => {
+        map.invalidateSize();
+    }, 100);
 }
 
 
@@ -84,27 +90,48 @@ function startWatchingLocationUpdates(sessionId) {
 
 /**
  * Updates the map marker with new location data.
- * @param {object} data Location data { latitude, longitude, accuracy, timestamp }
+ * @param {object} data Location data { latitude, longitude, accuracy, timestamp, address: { ... } }
  */
 function updateMap(data) {
     const latlng = [data.latitude, data.longitude];
     const timestamp = new Date(data.timestamp).toLocaleTimeString();
+    const address = data.address || {};
 
     if (!marker) {
         marker = L.marker(latlng).addTo(map);
     } else {
         marker.setLatLng(latlng);
     }
+    
+    // Format address details for display
+    const streetInfo = address.street ? `${address.street}${address.number ? ', ' + address.number : ''}` : 'N/A';
+    const neighborhood = address.neighborhood || 'N/A';
+    const cityStateInfo = address.city && address.state ? `${address.city} - ${address.state}` : address.city || address.state || 'N/A';
+    const postcode = address.postcode || 'N/A';
 
-    marker.setPopupContent(
-        `<b>Localização Atualizada:</b><br>
+
+    const popupContent = `
+        <b>Localização Atualizada:</b><br>
         Hora: ${timestamp}<br>
-        Lat: ${data.latitude.toFixed(4)}, Lon: ${data.longitude.toFixed(4)}<br>
-        Precisão: ±${data.accuracy.toFixed(1)}m`
-    ).openPopup();
+        <hr>
+        <b>Endereço Estimado:</b><br>
+        Rua: ${streetInfo}<br>
+        Bairro: ${neighborhood}<br>
+        Cidade/Estado: ${cityStateInfo}<br>
+        CEP: ${postcode}<br>
+        <hr>
+        <b>Coordenadas:</b><br>
+        Lat: ${data.latitude.toFixed(6)}, Lon: ${data.longitude.toFixed(6)}<br>
+        Precisão: ±${data.accuracy.toFixed(1)}m
+    `;
+
+    marker.setPopupContent(popupContent).openPopup();
 
     // Centraliza o mapa na nova localização e aumenta o zoom se necessário
     map.setView(latlng, map.getZoom() > 15 ? map.getZoom() : 15);
 
-    document.getElementById('tracker-status').textContent = `Localização recebida em: ${timestamp} (Precisão: ${data.accuracy.toFixed(1)}m)`
+    document.getElementById('tracker-status').innerHTML = `
+        Localização recebida em: ${timestamp} (Precisão: ${data.accuracy.toFixed(1)}m)<br>
+        Endereço: ${streetInfo}, ${cityStateInfo}
+    `;
 }

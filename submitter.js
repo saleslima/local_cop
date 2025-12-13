@@ -1,4 +1,5 @@
 import { sendLocationData } from './mock_api.js';
+import { reverseGeocode } from './geocoding.js';
 
 /**
  * Handles the logic for the device that is being tracked (the submitter).
@@ -35,24 +36,50 @@ export function initializeSubmitter(sessionId) {
     async function sendLocation(position) {
         const { latitude, longitude, accuracy } = position.coords;
         const timestamp = new Date(position.timestamp).toLocaleTimeString();
+        
+        // 1. Perform Reverse Geocoding
+        statusEl.textContent = 'Obtendo endereço...';
+        const addressDetails = await reverseGeocode(latitude, longitude);
 
         const data = {
             sessionId: sessionId,
             latitude: latitude,
             longitude: longitude,
             accuracy: accuracy,
-            timestamp: position.timestamp
+            timestamp: position.timestamp,
+            address: addressDetails || {} // Include address details
         };
-
+        
+        // 2. Send combined data
+        statusEl.textContent = 'Enviando dados de localização...';
         const success = await sendLocationData(sessionId, data);
 
         if (success) {
+            statusEl.textContent = 'Compartilhando localização em tempo real.';
             infoEl.className = 'status success';
+            
+            let addressHtml = '<p>Endereço não encontrado ou serviço indisponível.</p>';
+            if (addressDetails && Object.keys(addressDetails).length > 0) {
+                // Prioritize displaying structured address information
+                const streetInfo = addressDetails.street ? `${addressDetails.street}${addressDetails.number ? ', ' + addressDetails.number : ''}` : 'N/A';
+                const cityStateInfo = addressDetails.city && addressDetails.state ? `${addressDetails.city} - ${addressDetails.state}` : addressDetails.city || addressDetails.state || 'N/A';
+                
+                addressHtml = `
+                    <p><strong>CEP:</strong> ${addressDetails.postcode || 'N/A'}</p>
+                    <p><strong>Rua:</strong> ${streetInfo}</p>
+                    <p><strong>Bairro:</strong> ${addressDetails.neighborhood || 'N/A'}</p>
+                    <p><strong>Cidade/Estado:</strong> ${cityStateInfo}</p>
+                `;
+            }
+
             infoEl.innerHTML = `
                 <p>Localização enviada com sucesso!</p>
                 <p>Última atualização: ${timestamp}</p>
+                <h3>Coordenadas:</h3>
                 <p>Lat: ${latitude.toFixed(6)}, Lon: ${longitude.toFixed(6)}</p>
                 <p>Precisão: ${accuracy.toFixed(1)} metros</p>
+                <h3>Endereço Estimado:</h3>
+                ${addressHtml}
             `;
         } else {
             infoEl.className = 'status error';
