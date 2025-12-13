@@ -1,0 +1,110 @@
+import L from 'leaflet';
+import { v4 as uuidv4 } from 'uuid';
+import { pollLocationData } from './mock_api.js';
+
+// Centro inicial do mapa (São Paulo, Brasil)
+const DEFAULT_CENTER = [-23.5505, -46.6333]; 
+const DEFAULT_ZOOM = 13;
+
+let map;
+let marker;
+let currentSessionId;
+
+/**
+ * Initializes the map and generates the tracking interface.
+ */
+export function initializeTracker() {
+    const app = document.getElementById('app');
+    currentSessionId = uuidv4();  
+    
+    // Cria o link de rastreamento com o ID da sessão
+    const trackingLink = `${window.location.origin}${window.location.pathname}?session=${currentSessionId}`;
+
+    app.innerHTML = `
+        <div id="tracker-view">
+            <h1>Rastreador de Localização em Tempo Real</h1>
+            <div class="controls">
+                <p>Envie este link para o celular alvo. O usuário deverá clicar na imagem para iniciar o compartilhamento:</p>
+                <div class="link-output" id="tracking-link">${trackingLink}</div>
+                <button class="button" id="copy-link">Copiar Link</button>
+                <p style="margin-top: 10px;">ID da Sessão: ${currentSessionId}</p>
+                <p id="tracker-status">Aguardando a primeira localização...</p>
+            </div>
+            <div id="map"></div>
+        </div>
+    `;
+
+    document.getElementById('copy-link').addEventListener('click', () => {
+        navigator.clipboard.writeText(trackingLink).then(() => {
+            alert('Link copiado para a área de transferência!');
+        }).catch(err => {
+            console.error('Falha ao copiar:', err);
+        });
+    });
+
+    initMap();
+    startWatchingLocationUpdates(currentSessionId);
+}
+
+function initMap() {
+    map = L.map('map').setView(DEFAULT_CENTER, DEFAULT_ZOOM);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(map);
+
+    // Marcador inicial
+    marker = L.marker(DEFAULT_CENTER).addTo(map)
+        .bindPopup("Aguardando localização...")
+        .openPopup();
+}
+
+
+// --- SIMULAÇÃO DE RECEBIMENTO DE DADOS (VIA API/Polling) ---
+// NOTA IMPORTANTE: Para funcionar em um ambiente web real (cross-device), 
+// 'pollLocationData' deve ser substituída por uma chamada real a um endpoint GET/WebSocket 
+// que se comunica com o servidor onde o dispositivo alvo enviou os dados.
+function startWatchingLocationUpdates(sessionId) {
+    const statusEl = document.getElementById('tracker-status');
+    console.log(`[Tracker] Monitorando Sessão ID: ${sessionId}`);
+
+    statusEl.textContent = `Sessão ${sessionId} iniciada. Aguardando dados do dispositivo alvo (Verificando Mock API)...`;
+    
+    // Usamos um polling simples (setInterval) para simular o recebimento de updates
+    // da API (que ainda usa LocalStorage para simulação local).
+    setInterval(async () => {
+        const data = await pollLocationData(sessionId);
+
+        if (data) {
+            updateMap(data);
+        }
+    }, 1000); // Verifica a cada segundo
+}
+
+
+/**
+ * Updates the map marker with new location data.
+ * @param {object} data Location data { latitude, longitude, accuracy, timestamp }
+ */
+function updateMap(data) {
+    const latlng = [data.latitude, data.longitude];
+    const timestamp = new Date(data.timestamp).toLocaleTimeString();
+
+    if (!marker) {
+        marker = L.marker(latlng).addTo(map);
+    } else {
+        marker.setLatLng(latlng);
+    }
+
+    marker.setPopupContent(
+        `<b>Localização Atualizada:</b><br>
+        Hora: ${timestamp}<br>
+        Lat: ${data.latitude.toFixed(4)}, Lon: ${data.longitude.toFixed(4)}<br>
+        Precisão: ±${data.accuracy.toFixed(1)}m`
+    ).openPopup();
+
+    // Centraliza o mapa na nova localização e aumenta o zoom se necessário
+    map.setView(latlng, map.getZoom() > 15 ? map.getZoom() : 15);
+
+    document.getElementById('tracker-status').textContent = `Localização recebida em: ${timestamp} (Precisão: ${data.accuracy.toFixed(1)}m)`
+}
