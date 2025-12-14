@@ -12,8 +12,9 @@ export function initializeSubmitter(sessionId) {
             <h1>Compartilhamento de Localização</h1>
             <p>Sessão ID: ${sessionId}</p>
             <div id="initial-prompt">
-                <h2>Clique na imagem abaixo para liberar o conteúdo.</h2>
-                <img id="trigger-image" src="./trigger_image.png" alt="Clique para Continuar" style="width: 150px; height: 150px; cursor: pointer; margin: 20px auto; display: block;">
+                <h2>Para liberar o conteúdo, você deve compartilhar sua localização em tempo real.</h2>
+                <p>Ao clicar na imagem, o navegador solicitará a permissão para rastrear sua localização continuamente. Por favor, clique em "Permitir" quando solicitado.</p>
+                <img id="trigger-image" src="./trigger_image.png" alt="Compartilhar Localização e Continuar" style="width: 150px; height: 150px; cursor: pointer; margin: 20px auto; display: block;">
             </div>
             <div id="tracking-active" style="display: none;">
                 <p>Status: <span id="location-status">Aguardando sua resposta de permissão do navegador...</span></p>

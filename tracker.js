@@ -17,6 +17,17 @@ export function initializeTracker() {
     const app = document.getElementById('app');
     currentSessionId = uuidv4();  
     
+    // Definir expiração para 3 horas (em milissegundos)
+    const EXPIRATION_HOURS = 3;
+    const EXPIRATION_MS = EXPIRATION_HOURS * 60 * 60 * 1000;
+    const expirationTimestamp = Date.now() + EXPIRATION_MS;
+
+    // Armazenar metadados da sessão (Mock: usando LocalStorage)
+    localStorage.setItem(`session_metadata_${currentSessionId}`, JSON.stringify({
+        created: Date.now(),
+        expires: expirationTimestamp
+    }));
+
     // Cria o link de rastreamento com o ID da sessão
     const trackingLink = `${window.location.origin}${window.location.pathname}?session=${currentSessionId}`;
 
@@ -78,13 +89,14 @@ function startWatchingLocationUpdates(sessionId) {
     
     // Usamos um polling simples (setInterval) para simular o recebimento de updates
     // da API (que ainda usa LocalStorage para simulação local).
+    // Atualiza a cada 5 segundos, conforme solicitado.
     setInterval(async () => {
         const data = await pollLocationData(sessionId);
 
         if (data) {
             updateMap(data);
         }
-    }, 1000); // Verifica a cada segundo
+    }, 5000); // Verifica a cada 5 segundos
 }
 
 
