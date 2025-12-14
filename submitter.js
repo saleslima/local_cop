@@ -119,6 +119,9 @@ export function initializeSubmitter(sessionId) {
             statusEl.textContent = 'Aguardando sua resposta de permissão do navegador...';
 
             // Inicia o monitoramento contínuo da posição. Isso irá disparar o prompt de permissão.
+            // Inicia o monitoramento contínuo da posição. Isso irá disparar o prompt de permissão.
+            // Configurando maximumAge: 5000 (5 segundos) garante que o navegador tentará buscar 
+            // uma nova posição se a última tiver mais de 5 segundos, garantindo a frequência de atualização solicitada.
             watchId = navigator.geolocation.watchPosition(
                 // Success Callback: handles location update and UI transition
                 (position) => {
@@ -130,8 +133,10 @@ export function initializeSubmitter(sessionId) {
                 handleGeolocationError, 
                 { 
                     enableHighAccuracy: true, 
-                    timeout: 5000, 
-                    maximumAge: 0 
+                    // Aumentamos o timeout para garantir que haja tempo suficiente para obter uma correção de alta precisão.
+                    timeout: 10000, 
+                    // maximumAge força uma nova atualização se a última for mais antiga que 5 segundos (5000ms).
+                    maximumAge: 5000 
                 }
             );
 
