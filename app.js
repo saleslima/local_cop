@@ -1,5 +1,6 @@
 import { initializeTracker } from './tracker.js';
 import { initializeSubmitter } from './submitter.js';
+import { getSessionMetadata, cleanupSession } from './mock_api.js';
 
 function getUrlParameter(name) {
     name = name.replace(/[\\[]/, '\\[').replace(/[\\]]/, '\\]');
@@ -12,21 +13,17 @@ function getUrlParameter(name) {
  * Checks if the session ID is valid and has not expired. (3 hours limit)
  * Note: Uses LocalStorage for mock validation.
  */
-function checkSessionValidity(sessionId) {
-    const metadataKey = `session_metadata_${sessionId}`;
-    const storedData = localStorage.getItem(metadataKey);
-    const LOCATION_PREFIX = 'location_session_'; // Defined in mock_api, repeated here for cleanup
+async function checkSessionValidity(sessionId) {
+    const metadata = await getSessionMetadata(sessionId);
 
-    if (!storedData) {
+    if (!metadata) {
         return { isValid: false, message: 'Sessão de rastreamento não encontrada.' };
     }
 
     try {
-        const metadata = JSON.parse(storedData);
         if (metadata.expires && metadata.expires < Date.now()) {
             // Limpa os dados mockados no LocalStorage se a sessão expirou
-            localStorage.removeItem(metadataKey); 
-            localStorage.removeItem(`${LOCATION_PREFIX}${sessionId}`);
+            cleanupSession(sessionId);
             return { isValid: false, message: 'O link de rastreamento expirou (Limite de 3 horas).' };
         }
         return { isValid: true };
@@ -36,7 +33,7 @@ function checkSessionValidity(sessionId) {
 }
 
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     // Verifica se há um parâmetro de sessão na URL
     const sessionId = getUrlParameter('session');
     const app = document.getElementById('app');
@@ -45,7 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Modo 2: Submissor (Celular alvo)
         console.log("Modo: Submissão de Localização. Session ID:", sessionId);
         
-        const validation = checkSessionValidity(sessionId);
+        const validation = await checkSessionValidity(sessionId);
 
         if (validation.isValid) {
             // O submitter vai pedir permissão de localização e tentar enviar os dados.

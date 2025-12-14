@@ -1,6 +1,6 @@
 import L from 'leaflet';
 import { v4 as uuidv4 } from 'uuid';
-import { pollLocationData } from './mock_api.js';
+import { pollLocationData, setSessionMetadata } from './mock_api.js';
 
 // Centro inicial do mapa (São Paulo, Brasil)
 const DEFAULT_CENTER = [-23.5505, -46.6333]; 
@@ -9,12 +9,56 @@ const DEFAULT_ZOOM = 13;
 let map;
 let marker;
 let currentSessionId;
+let pollingIntervalId = null;
 
 /**
- * Initializes the map and generates the tracking interface.
+ * Initializes the tracker view with a link generation button.
  */
 export function initializeTracker() {
     const app = document.getElementById('app');
+    
+    // The main tracker-view is a flex column.
+    app.innerHTML = `
+        <div id="tracker-view">
+            <h1>Rastreador de Localização em Tempo Real</h1>
+            <div class="controls" id="link-generator-area">
+                <p>Clique abaixo para gerar um novo link de rastreamento de 3 horas:</p>
+                <button class="button" id="generate-link-button">Gerar Novo Link</button>
+            </div>
+            <!-- tracking-display-area needs to be display: flex and flex-direction: column to ensure the map fills the remaining space -->
+            <div id="tracking-display-area" style="display: none; flex-direction: column; flex-grow: 1;">
+                <div class="controls">
+                    <p>Envie este link para o celular alvo. O usuário deverá clicar na imagem para iniciar o compartilhamento:</p>
+                    <div class="link-output" id="tracking-link"></div>
+                    <button class="button" id="copy-link">Copiar Link</button>
+                    <p style="margin-top: 10px;">ID da Sessão: <span id="session-id-display"></span></p>
+                    <p id="tracker-status">Aguardando a primeira localização...</p>
+                </div>
+                <div id="map"></div>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('generate-link-button').addEventListener('click', startTrackingSession);
+}
+
+/**
+ * Generates a new tracking session, updates the UI, and starts polling.
+ */
+function startTrackingSession() {
+    // 1. Cleanup previous session if active
+    if (map) {
+        // Cleanup previous map instance if regenerating a link (safety measure)
+        map.remove(); 
+        map = null;
+        // Clear previous polling interval
+        if (pollingIntervalId) {
+            clearInterval(pollingIntervalId);
+            pollingIntervalId = null;
+        }
+    }
+    
+    // 2. Setup Session
     currentSessionId = uuidv4();  
     
     // Definir expiração para 3 horas (em milissegundos)
@@ -23,38 +67,35 @@ export function initializeTracker() {
     const expirationTimestamp = Date.now() + EXPIRATION_MS;
 
     // Armazenar metadados da sessão (Mock: usando LocalStorage)
-    localStorage.setItem(`session_metadata_${currentSessionId}`, JSON.stringify({
+    setSessionMetadata(currentSessionId, {
         created: Date.now(),
         expires: expirationTimestamp
-    }));
+    });
 
-    // Cria o link de rastreamento com o ID da sessão
+    // 3. Create and Display Link
     const trackingLink = `${window.location.origin}${window.location.pathname}?session=${currentSessionId}`;
+    
+    document.getElementById('tracking-link').textContent = trackingLink;
+    document.getElementById('session-id-display').textContent = currentSessionId;
+    document.getElementById('tracking-display-area').style.display = 'flex';
+    document.getElementById('link-generator-area').style.display = 'none';
+    
+    // Reset status text
+    document.getElementById('tracker-status').textContent = 'Sessão ' + currentSessionId + ' iniciada. Aguardando dados do dispositivo alvo (Verificando Mock API)...';
 
-    app.innerHTML = `
-        <div id="tracker-view">
-            <h1>Rastreador de Localização em Tempo Real</h1>
-            <div class="controls">
-                <p>Envie este link para o celular alvo. O usuário deverá clicar na imagem para iniciar o compartilhamento:</p>
-                <div class="link-output" id="tracking-link">${trackingLink}</div>
-                <button class="button" id="copy-link">Copiar Link</button>
-                <p style="margin-top: 10px;">ID da Sessão: ${currentSessionId}</p>
-                <p id="tracker-status">Aguardando a primeira localização...</p>
-            </div>
-            <div id="map"></div>
-        </div>
-    `;
 
-    document.getElementById('copy-link').addEventListener('click', () => {
+    // 4. Initialize Map and Polling
+    initMap();
+    startWatchingLocationUpdates(currentSessionId);
+    
+    // 5. Setup Copy Button (re-bind just in case, though it only needs to be bound once if the element wasn't recreated)
+    document.getElementById('copy-link').onclick = () => {
         navigator.clipboard.writeText(trackingLink).then(() => {
             alert('Link copiado para a área de transferência!');
         }).catch(err => {
             console.error('Falha ao copiar:', err);
         });
-    });
-
-    initMap();
-    startWatchingLocationUpdates(currentSessionId);
+    };
 }
 
 function initMap() {
@@ -90,7 +131,7 @@ function startWatchingLocationUpdates(sessionId) {
     // Usamos um polling simples (setInterval) para simular o recebimento de updates
     // da API (que ainda usa LocalStorage para simulação local).
     // Atualiza a cada 5 segundos, conforme solicitado.
-    setInterval(async () => {
+    pollingIntervalId = setInterval(async () => {
         const data = await pollLocationData(sessionId);
 
         if (data) {
